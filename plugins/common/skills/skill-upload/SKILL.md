@@ -83,7 +83,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, LS, mcp__skill-uploader__val
    **插件额外检查（如适用）：**
 
    - `.claude-plugin/plugin.json` 格式正确且包含 `name`
-   - `.mcp.json`（如存在）格式正确
+   - `.mcp.json`（如存在）格式正确，`mcpServers` 中的每个服务器需包含 `url`（SSE 模式）或 `command`（stdio 模式）
    - `hooks/hooks.json`（如存在）格式正确
 
    **排除检查：**
@@ -225,12 +225,16 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, LS, mcp__skill-uploader__val
 错误信息：<error message>
 
 💡 常见原因：
-  - GITHUB_TOKEN 未设置或已过期
-  - CATALOG_REPO 环境变量未配置
+  - MCP 服务未启动（确认 http://localhost:8767/sse 可访问）
+  - GitHub Token 未配置或已过期（检查 config.json 或 GITHUB_TOKEN 环境变量）
+  - Docker 容器未运行（docker ps 检查状态）
   - 网络连接问题
   - 仓库权限不足
 
-请检查 MCP 服务器配置后重试。
+🔧 排查步骤：
+  1. 确认服务运行: curl http://localhost:8767/sse
+  2. 检查容器日志: docker logs skill-uploader
+  3. 检查 Token 配置: 确保 config.json 中的 githubToken 有效
 ═══════════════════════════════════════════
 ```
 
@@ -240,26 +244,61 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, LS, mcp__skill-uploader__val
 
 如果用户还没有配置 `skill-uploader` MCP 服务器，提示用户：
 
-> ⚙️ 上传功能需要配置 `skill-uploader` MCP 服务器。
+> ⚙️ 上传功能需要 `skill-uploader` MCP 服务器（HTTP/SSE 模式）。
 >
-> 请在你的 Claude Code MCP 设置中添加：
+> **方式一：Docker 部署（推荐）**
+>
+> ```bash
+> # 1. 克隆 skill-platform 项目（如果还没有）
+> git clone https://github.com/rj-yingjunjie/skill-platform.git
+> cd skill-platform/mcp-uploader-py
+>
+> # 2. 构建并启动 Docker 容器
+> docker build -t skill-uploader-mcp .
+> docker run -d -p 8767:8767 \
+>   -e GITHUB_TOKEN=ghp_你的真实令牌 \
+>   --name skill-uploader \
+>   skill-uploader-mcp
+>
+> # 或使用 docker compose（需先编辑 docker-compose.yml 中的环境变量）
+> docker compose up -d
+> ```
+>
+> **方式二：本地 Python 启动**
+>
+> ```bash
+> # 1. 克隆项目并进入目录
+> git clone https://github.com/rj-yingjunjie/skill-platform.git
+> cd skill-platform/mcp-uploader-py
+>
+> # 2. 安装依赖
+> pip install -r requirements.txt
+>
+> # 3. 配置密钥（编辑 config.json，填入你的 GitHub Token）
+> cp config.example.json config.json
+> # 然后编辑 config.json，将 githubToken 改为你的真实令牌
+>
+> # 4. 启动 SSE 服务
+> python server.py
+> ```
+>
+> **配置 .mcp.json（自动）**
+>
+> 本插件（common）已包含 `.mcp.json`，通过 `/plugin install` 安装后会自动生效：
 >
 > ```json
 > {
 >   "mcpServers": {
 >     "skill-uploader": {
->       "command": "node",
->       "args": ["<path-to>/mcp-uploader/dist/index.js"],
->       "env": {
->         "GITHUB_TOKEN": "ghp_你的GitHub令牌",
->         "CATALOG_REPO": "你的组织/skill-hub"
->       }
+>       "url": "http://localhost:8767/sse"
 >     }
 >   }
 > }
 > ```
 >
-> 或者在项目根目录创建 `.mcp.json` 文件。
+> 如果是手动配置，将上述内容添加到项目根目录的 `.mcp.json` 文件中。
+>
+> 服务启动后，MCP 会自动从内部 `config.json` 或环境变量读取密钥，无需在 `.mcp.json` 中暴露 Token。
 
 ---
 
@@ -277,6 +316,7 @@ skill-hub/                           ← GitHub 仓库
     ├── common/                      ← 公共插件（所有人共享）
     │   ├── .claude-plugin/
     │   │   └── plugin.json
+    │   ├── .mcp.json                ← MCP 服务器配置（SSE URL 模式，/plugin install 自动读取）
     │   └── skills/
     │       ├── example-skill/       ← 示例技能
     │       │   └── SKILL.md
@@ -306,6 +346,9 @@ skill-hub/                           ← GitHub 仓库
 在整个流程中注意：
 
 - 🔒 上传密码只用于本次提交验证，不会被存储
+- 🔒 GitHub Token 保存在 MCP 服务内部（config.json 或 Docker 环境变量），不会出现在 `.mcp.json` 中
+- 🔒 `.mcp.json` 只包含服务地址 `"url": "http://localhost:8767/sse"`，不包含任何密钥
 - 🔒 提交前会自动跳过 `.git`、`node_modules`、隐藏文件（`.claude-plugin` 和 `.mcp.json` 除外）
 - 🔒 提醒用户检查是否包含敏感信息（API Key、密码、.env 文件等）
-- 🔒 GITHUB_TOKEN 需要有对 skill-hub 仓库的写入权限
+- 🔒 config.json 已加入 .gitignore，不会被提交到代码仓库
+- 🔒 Docker 部署时推荐使用 `-e GITHUB_TOKEN=xxx` 传入，避免 Token 写入镜像
