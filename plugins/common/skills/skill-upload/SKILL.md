@@ -15,67 +15,65 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, LS, mcp__skill-uploader__val
 
 在开始任何上传操作前，**必须先验证 MCP 服务的可用性**。
 
-### 1.1 读取当前 MCP 配置地址
+### 验证方式：直接调用 MCP 工具
 
-依次查找以下文件，获取 `skill-uploader` 的 URL（记为 `MCP_URL`）：
+**不要使用 curl、Bash 或任何命令行工具测试连通性**（跨平台兼容性差）。直接尝试调用 MCP 工具即可判断：
 
-1. 当前插件目录下的 `.mcp.json` → 读取 `mcpServers.skill-uploader.url`
-2. 项目根目录的 `.mcp.json` → 读取 `mcpServers.skill-uploader.url`
-3. 项目根目录的 `.vscode/mcp.json` → 读取 `servers.skill-uploader.url`
-
-找到第一个有效的 URL 即可。如果都找不到，提示用户先配置 MCP（见第六节）。
-
-### 1.2 测试 MCP 服务连通性
-
-使用 Bash 工具测试连接：
-
-```bash
-curl -s -o /dev/null -w "%{http_code}" --max-time 5 <MCP_URL>
+```
+调用 mcp__skill-uploader__validate_skill
+参数: { "path": "/tmp/__mcp_health_check__" }
 ```
 
-> 将 `<MCP_URL>` 替换为 1.1 中读取到的实际地址。
+**根据调用结果判断：**
 
-**判断结果：**
+**情况 A：工具调用成功（返回了 JSON 结果，哪怕 `valid: false`）**
 
-- **HTTP 200 或能连通** → MCP 服务可用，显示：
+说明 MCP 服务已连接且工具已注册，显示：
 
-  > ✅ MCP 服务连接成功
-  > 📡 服务地址：`<MCP_URL>`
-  >
+> ✅ MCP 服务连接正常，`skill-uploader` 工具可用。
 
-  继续下一步。
-- **连接失败/超时** → 显示：
+继续下一步。
 
-  > ❌ MCP 服务无法连接
-  > 📡 尝试连接：`<MCP_URL>`
-  >
-  > 可能原因：
-  >
-  > - MCP 服务未启动（联系管理员检查服务器）
-  > - 网络不通（确认本机能访问该地址）
-  > - 配置地址有误（检查 `.mcp.json` 中的 URL）
-  >
-  > 🔧 排查命令：
-  >
-  > ```bash
-  > curl <MCP_URL>
-  > ```
-  >
+**情况 B：工具不存在（报 "tool not found" 或 `mcp__skill-uploader__*` 不在可用工具列表中）**
 
-  **停止流程**，等待用户解决后重试。
+说明 MCP 未注册到当前会话。先读取配置文件获取 MCP 地址用于提示：
 
-### 1.3 验证 MCP 工具可调用
+- 查找 `.mcp.json` → `mcpServers.skill-uploader.url`
+- 或 `.vscode/mcp.json` → `servers.skill-uploader.url`
 
-连通性通过后，尝试调用 `mcp__skill-uploader__validate_skill` 工具（随意传一个路径如 `/tmp/test`），确认工具可被调用。
+然后显示：
 
-- 如果工具调用成功（即使返回 `valid: false` 也算成功） → MCP 工具注册正常
-- 如果报 "tool not found" → MCP 虽然网络可达但工具未注册，提示用户：
+> ❌ MCP 工具未注册，`skill-uploader` 服务未连接到当前会话。
+>
+> 📡 配置中的 MCP 地址：`<读取到的 URL，或"未找到配置">`
+>
+> 🔧 请按以下步骤排查：
+>
+> **1. 确认 MCP 服务正在运行**
+> 在终端中手动测试（不要通过 Bash 工具）：
+>
+> ```
+> curl <MCP_URL>
+> ```
+>
+> 如果服务未启动，请联系管理员。
+>
+> **2. 注册 MCP 到当前会话**
+>
+> Claude Code 用户：
+>
+> ```
+> claude mcp add --transport sse skill-uploader <MCP_URL>
+> ```
+>
+> 然后**重启 Claude Code**。
+>
+> VS Code Copilot 用户：
+> 确认 `.vscode/mcp.json` 存在，然后命令面板 → `MCP: List Servers` 检查状态。
+>
+> **3. 重新调用本技能**
 
-  > ⚠️ MCP 服务可达但工具未注册。请尝试：
-  >
-  > - Claude Code: 运行 `/mcp` 检查，或重启 Claude Code
-  > - VS Code: 命令面板 → `MCP: List Servers`，确认 skill-uploader 状态
-  >
+**停止流程**，等待用户解决后重试。
 
 ---
 
