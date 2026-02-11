@@ -1,0 +1,15 @@
+{
+  "name": "skill-hub",
+  "owner": {
+    "name": "ruijie"
+  },
+  "metadata": {
+    "description": "Company shared skills & plugins catalog"
+  },
+  "plugins": [
+    {
+      "name": "common",
+      "source": "./plugins/common"
+    }
+  ]
+}
