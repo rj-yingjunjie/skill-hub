@@ -3,7 +3,7 @@
   "skills": [
     {
       "name": "example-skill",
-      "repo": "ruijie/skill-hub",
+      "repo": "rj-yingjunjie/skill-hub",
       "type": "skill",
       "tags": ["universal"],
       "description": "A demo skill that shows how to write clean commit messages",
