@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "skills": [
+    {
+      "name": "example-skill",
+      "repo": "ruijie/skill-hub",
+      "type": "skill",
+      "tags": ["universal"],
+      "description": "A demo skill that shows how to write clean commit messages",
+      "subpath": "plugins/common/skills/example-skill",
+      "createdAt": "2026-02-11T00:00:00Z"
+    }
+  ]
+}
