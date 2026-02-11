@@ -1,7 +1,6 @@
 {
-  "mcpServers": {
-    "skill-uploader": {
-      "url": "http://localhost:8767/sse"
-    }
+  "skill-uploader": {
+    "type": "sse",
+    "url": "${SKILL_UPLOADER_URL:-http://127.0.0.1:8767/sse}"
   }
 }
