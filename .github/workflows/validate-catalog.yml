@@ -1,0 +1,102 @@
+name: Validate Catalog PR
+
+on:
+  pull_request:
+    paths: ['catalog.json']
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate catalog.json schema
+        run: |
+          node -e "
+          const fs = require('fs');
+          const catalog = JSON.parse(fs.readFileSync('catalog.json', 'utf-8'));
+
+          // Check version
+          if (!catalog.version) {
+            console.error('ERROR: missing version field');
+            process.exit(1);
+          }
+
+          // Check skills array
+          if (!Array.isArray(catalog.skills)) {
+            console.error('ERROR: skills must be an array');
+            process.exit(1);
+          }
+
+          const required = ['name', 'repo', 'type', 'tags', 'description', 'subpath', 'createdAt'];
+          const validTypes = ['skill', 'plugin'];
+          const validTags = ['universal', 'cli-only', 'mcp-required', 'hybrid', 'has-agents', 'has-commands', 'has-hooks', 'plugin-only'];
+
+          for (const entry of catalog.skills) {
+            // Required fields
+            for (const field of required) {
+              if (!entry[field] && entry[field] !== false) {
+                console.error('ERROR: entry \"' + entry.name + '\" missing field: ' + field);
+                process.exit(1);
+              }
+            }
+
+            // Type validation
+            if (!validTypes.includes(entry.type)) {
+              console.error('ERROR: entry \"' + entry.name + '\" invalid type: ' + entry.type);
+              process.exit(1);
+            }
+
+            // Tags validation
+            for (const tag of entry.tags) {
+              if (!validTags.includes(tag)) {
+                console.warn('WARNING: entry \"' + entry.name + '\" has unknown tag: ' + tag);
+              }
+            }
+
+            // Name format
+            if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(entry.name) && entry.name.length > 1) {
+              console.warn('WARNING: entry \"' + entry.name + '\" name should be lowercase-kebab-case');
+            }
+          }
+
+          // Check for duplicates
+          const names = catalog.skills.map(s => s.name);
+          const dupes = names.filter((n, i) => names.indexOf(n) !== i);
+          if (dupes.length > 0) {
+            console.error('ERROR: duplicate entries: ' + dupes.join(', '));
+            process.exit(1);
+          }
+
+          console.log('Catalog validation passed (' + catalog.skills.length + ' entries)');
+          "
+
+      - name: Check repo accessibility
+        run: |
+          node -e "
+          const catalog = JSON.parse(require('fs').readFileSync('catalog.json', 'utf-8'));
+          const errors = [];
+
+          async function checkRepo(entry) {
+            const url = 'https://github.com/' + entry.repo;
+            try {
+              const res = await fetch(url, { method: 'HEAD' });
+              if (!res.ok) {
+                errors.push(entry.name + ': repo ' + entry.repo + ' returned ' + res.status);
+              }
+            } catch (e) {
+              errors.push(entry.name + ': cannot reach ' + entry.repo + ' — ' + e.message);
+            }
+          }
+
+          async function main() {
+            await Promise.all(catalog.skills.map(checkRepo));
+            if (errors.length > 0) {
+              console.error('Repo accessibility errors:');
+              errors.forEach(e => console.error('  - ' + e));
+              process.exit(1);
+            }
+            console.log('All repos accessible');
+          }
+          main();
+          "
