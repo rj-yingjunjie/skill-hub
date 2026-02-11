@@ -5,7 +5,9 @@
       "name": "example-skill",
       "repo": "rj-yingjunjie/skill-hub",
       "type": "skill",
-      "tags": ["universal"],
+      "tags": [
+        "universal"
+      ],
       "description": "A demo skill that shows how to write clean commit messages",
       "subpath": "plugins/common/skills/example-skill",
       "createdAt": "2026-02-11T00:00:00Z"
@@ -14,7 +16,9 @@
       "name": "skill-structure-audit",
       "repo": "rj-yingjunjie/skill-hub",
       "type": "skill",
-      "tags": ["universal"],
+      "tags": [
+        "universal"
+      ],
       "description": "审核并规整 Claude Code 技能或插件的项目结构，引导用户从零创建符合规范的技能/插件目录",
       "subpath": "plugins/common/skills/skill-structure-audit",
       "createdAt": "2026-02-11T00:00:00Z"
@@ -23,20 +27,35 @@
       "name": "skill-upload",
       "repo": "rj-yingjunjie/skill-hub",
       "type": "skill",
-      "tags": ["mcp-required"],
+      "tags": [
+        "mcp-required"
+      ],
       "description": "上传技能或插件到 skill-hub 仓库，包含密码验证、结构审核、自动分类和 GitHub 推送功能",
       "subpath": "plugins/common/skills/skill-upload",
       "createdAt": "2026-02-11T00:00:00Z",
       "mcpServers": {
         "skill-uploader": {
           "command": "node",
-          "args": ["mcp-uploader/dist/index.js"],
+          "args": [
+            "mcp-uploader/dist/index.js"
+          ],
           "env": {
             "GITHUB_TOKEN": "your-github-token",
             "CATALOG_REPO": "rj-yingjunjie/skill-hub"
           }
         }
       }
+    },
+    {
+      "name": "praise-user",
+      "repo": "rj-yingjunjie/skill-hub",
+      "type": "skill",
+      "tags": [
+        "universal"
+      ],
+      "description": "夸奖用户的表达生成器，根据对话场景输出真诚、具体且不过度的赞美。",
+      "subpath": "plugins/common/skills/praise-user",
+      "createdAt": "2026-02-11T17:38:48.654391+00:00"
     }
   ]
 }
