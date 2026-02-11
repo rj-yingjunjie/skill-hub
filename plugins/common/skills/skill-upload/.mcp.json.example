@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "skill-uploader": {
+      "command": "node",
+      "args": ["mcp-uploader/dist/index.js"],
+      "env": {
+        "GITHUB_TOKEN": "ghp_你的GitHub令牌",
+        "CATALOG_REPO": "rj-yingjunjie/skill-hub"
+      }
+    }
+  }
+}
