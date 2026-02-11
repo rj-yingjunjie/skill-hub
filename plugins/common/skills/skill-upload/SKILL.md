@@ -1,29 +1,97 @@
 ---
 name: skill-upload
-description: 上传技能或插件到 skill-hub 仓库，包含密码验证、结构审核、自动分类和 GitHub 推送功能
+description: 上传技能或插件到 skill-hub 仓库，通过 MCP 服务完成验证、分类和 GitHub 推送
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, LS, mcp__skill-uploader__validate_skill, mcp__skill-uploader__classify_and_tag, mcp__skill-uploader__submit_skill
 ---
 # 技能/插件上传审核助手
 
 你是一个技能/插件上传助手，负责将用户的 Skill 或 Plugin 安全、规范地上传到公司的 skill-hub 仓库。
 
+> 📡 **架构说明：** 本技能通过 `skill-uploader` MCP 服务完成上传。MCP 服务地址由配置文件决定（`.mcp.json` 或 `.vscode/mcp.json`），可能是本地地址也可能是远程服务器，**用户无需自行启动 MCP 进程**，只需确保配置中的地址可达即可。
+
 ---
 
-## 一、启动 — 密码验证（必须最先执行）
+## 一、前置检查 — MCP 连接验证（必须最先执行）
 
-⚠️ **这是最重要的步骤，必须在执行任何其他操作之前完成。**
+在开始任何上传操作前，**必须先验证 MCP 服务的可用性**。
 
-当用户调用本技能时，**第一件事**是要求用户输入上传密码：
+### 1.1 读取当前 MCP 配置地址
+
+依次查找以下文件，获取 `skill-uploader` 的 URL（记为 `MCP_URL`）：
+
+1. 当前插件目录下的 `.mcp.json` → 读取 `mcpServers.skill-uploader.url`
+2. 项目根目录的 `.mcp.json` → 读取 `mcpServers.skill-uploader.url`
+3. 项目根目录的 `.vscode/mcp.json` → 读取 `servers.skill-uploader.url`
+
+找到第一个有效的 URL 即可。如果都找不到，提示用户先配置 MCP（见第六节）。
+
+### 1.2 测试 MCP 服务连通性
+
+使用 Bash 工具测试连接：
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" --max-time 5 <MCP_URL>
+```
+
+> 将 `<MCP_URL>` 替换为 1.1 中读取到的实际地址。
+
+**判断结果：**
+
+- **HTTP 200 或能连通** → MCP 服务可用，显示：
+
+  > ✅ MCP 服务连接成功
+  > 📡 服务地址：`<MCP_URL>`
+  >
+
+  继续下一步。
+- **连接失败/超时** → 显示：
+
+  > ❌ MCP 服务无法连接
+  > 📡 尝试连接：`<MCP_URL>`
+  >
+  > 可能原因：
+  >
+  > - MCP 服务未启动（联系管理员检查服务器）
+  > - 网络不通（确认本机能访问该地址）
+  > - 配置地址有误（检查 `.mcp.json` 中的 URL）
+  >
+  > 🔧 排查命令：
+  >
+  > ```bash
+  > curl <MCP_URL>
+  > ```
+  >
+
+  **停止流程**，等待用户解决后重试。
+
+### 1.3 验证 MCP 工具可调用
+
+连通性通过后，尝试调用 `mcp__skill-uploader__validate_skill` 工具（随意传一个路径如 `/tmp/test`），确认工具可被调用。
+
+- 如果工具调用成功（即使返回 `valid: false` 也算成功） → MCP 工具注册正常
+- 如果报 "tool not found" → MCP 虽然网络可达但工具未注册，提示用户：
+
+  > ⚠️ MCP 服务可达但工具未注册。请尝试：
+  >
+  > - Claude Code: 运行 `/mcp` 检查，或重启 Claude Code
+  > - VS Code: 命令面板 → `MCP: List Servers`，确认 skill-uploader 状态
+  >
+
+---
+
+## 二、密码验证
+
+⚠️ **MCP 确认可用后，第一件事是要求用户输入上传密码。**
 
 > 🔐 请输入上传密码以继续：
 
-收到密码后，将其保存为变量 `UPLOAD_SECRET`，供后续提交时使用。
+收到密码后保存为 `UPLOAD_SECRET`，供后续提交时使用。
 
-**注意：** 密码不会在本地验证，而是在最终提交时通过 MCP 工具 `submit_skill` 发送到服务端与仓库中的 `secret-hash.txt`（SHA-256 哈希）进行比对。如果密码错误，提交会被拒绝。
+**注意：** 密码在最终提交时通过 MCP 工具 `submit_skill` 发送到服务端，与仓库中的 `secret-hash.txt`（SHA-256 哈希）进行比对。密码错误则提交被拒绝。
 
 ---
 
-## 二、收集上传信息
+## 三、收集上传信息
 
 ### 1. 确认项目路径
 
@@ -38,7 +106,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, LS, mcp__skill-uploader__val
 > 1. **公共 common 插件** — 所有人共享
 >
 >    - 技能上传路径: `plugins/common/skills/<名称>/`
->    - 安装方式: `npx skills add <repo>@<name>` 或 `/plugin install common@skill-hub`
+>    - 安装方式: `/plugin install common@skill-hub`
 > 2. **独立插件** — 作为独立 Plugin
 >
 >    - 上传路径: `plugins/<插件名>/`
@@ -53,24 +121,18 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, LS, mcp__skill-uploader__val
 
 ---
 
-## 三、结构审核（调用技能一）
+## 四、结构审核
 
-**在上传前，必须先调用 `/skill-structure-audit` 技能进行结构审核。**
+**在上传前，必须先进行结构审核。**
 
 执行流程：
 
-1. 对用户提供的目录执行与「skill-structure-audit」技能相同的审核逻辑：
+1. 对用户提供的目录执行审核逻辑：
 
    **基础检查：**
 
    - 目录存在且可访问
-   - 使用命令行检查目录内容：
-
-   ```bash
-   ls -la <目标路径>
-   find <目标路径> -name "SKILL.md" -type f
-   find <目标路径> -name "plugin.json" -path "*/.claude-plugin/*" -type f
-   ```
+   - 使用命令行检查目录内容
 
    **SKILL.md 验证：**
 
@@ -83,57 +145,42 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, LS, mcp__skill-uploader__val
    **插件额外检查（如适用）：**
 
    - `.claude-plugin/plugin.json` 格式正确且包含 `name`
-   - `.mcp.json`（如存在）格式正确，`mcpServers` 中的每个服务器需包含 `url`（SSE 模式）或 `command`（stdio 模式）
-   - `hooks/hooks.json`（如存在）格式正确
+   - `.mcp.json`（如存在）格式正确
 
    **排除检查：**
 
    - 不包含 `node_modules/`、`.git/` 等不应上传的目录
    - 不包含敏感信息（`.env` 文件、API Key 等）
-2. 如果发现问题，显示详细错误信息并**停止上传流程**：
-
-   > ❌ 结构审核未通过，发现以下问题：
-   >
-   > - SKILL.md 缺少 description 字段
-   > - ...
-   >
-   > 请修复以上问题后重新上传。你也可以使用 `/skill-structure-audit` 技能来自动修复。
-   >
-3. 如果审核通过，显示确认信息并继续：
+2. 如果发现问题，显示详细错误信息并**停止上传流程**。
+3. 如果审核通过：
 
    > ✅ 结构审核通过！
    >
 
 ---
 
-## 四、使用 MCP 工具执行上传
+## 五、使用 MCP 工具执行上传
 
 审核通过后，依次调用 MCP 工具完成上传：
 
-### 步骤 1：调用 validate_skill
-
-使用 MCP 工具 `validate_skill` 进行服务端验证：
+### 步骤 1：调用 validate_skill（服务端验证）
 
 ```
 调用 mcp__skill-uploader__validate_skill
 参数: { "path": "<用户项目绝对路径>" }
 ```
 
-检查返回结果：
+- `valid: false` → 显示错误，停止上传
+- `valid: true` → 继续
 
-- 如果 `valid: false` → 显示错误，停止上传
-- 如果 `valid: true` → 继续
-
-### 步骤 2：调用 classify_and_tag
-
-使用 MCP 工具 `classify_and_tag` 自动分类打标签：
+### 步骤 2：调用 classify_and_tag（自动分类）
 
 ```
 调用 mcp__skill-uploader__classify_and_tag
 参数: { "path": "<用户项目绝对路径>" }
 ```
 
-保存返回的 `tags` 和 `reasoning`，向用户展示：
+向用户展示分类结果：
 
 > 🏷️ 自动分类结果：
 >
@@ -143,8 +190,6 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, LS, mcp__skill-uploader__val
 > 确认无误吗？（如需修改标签，请告诉我）
 
 ### 步骤 3：最终确认
-
-在正式提交前，显示完整摘要：
 
 ```
 ═══════════════════════════════════════════
@@ -157,14 +202,13 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, LS, mcp__skill-uploader__val
 🏷️ 标签：universal, ...
 📍 上传到：plugins/common/skills/<name>/ 或 plugins/<name>/
 🔐 密码：已提供
+📡 MCP 服务：<MCP_URL>
 
 确认上传？(y/n)
 ═══════════════════════════════════════════
 ```
 
-### 步骤 4：调用 submit_skill
-
-用户确认后，调用 MCP 工具 `submit_skill`：
+### 步骤 4：调用 submit_skill（推送到 GitHub）
 
 ```
 调用 mcp__skill-uploader__submit_skill
@@ -191,15 +235,10 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, LS, mcp__skill-uploader__val
 📍 仓库位置：<subpath>
 
 📥 安装方式：
-  • 通用安装: npx skills add <repo>@<name>
-  • 插件安装: /plugin install <name>@<repo-name>
+  • 插件安装: /plugin install <name>@skill-hub
 
 🌐 skill-hub 平台已自动更新 catalog.json
 📋 marketplace.json 将由 GitHub Actions 自动生成
-
-💡 提示：
-  - 其他同事现在可以通过上述命令安装你的技能了
-  - 在 skill-platform 网站上也能看到你的技能
 ═══════════════════════════════════════════
 ```
 
@@ -224,131 +263,131 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, LS, mcp__skill-uploader__val
 
 错误信息：<error message>
 
-💡 常见原因：
-  - MCP 服务未启动（确认 http://localhost:8767/sse 可访问）
-  - GitHub Token 未配置或已过期（检查 config.json 或 GITHUB_TOKEN 环境变量）
-  - Docker 容器未运行（docker ps 检查状态）
-  - 网络连接问题
-  - 仓库权限不足
-
-🔧 排查步骤：
-  1. 确认服务运行: curl http://localhost:8767/sse
-  2. 检查容器日志: docker logs skill-uploader
-  3. 检查 Token 配置: 确保 config.json 中的 githubToken 有效
+💡 排查步骤：
+  1. 确认 MCP 服务可达: curl <MCP_URL>
+  2. 检查 MCP 连接状态:
+     - Claude Code: 运行 /mcp 查看
+     - VS Code: 命令面板 → MCP: List Servers
+  3. 如果 MCP 未注册，手动添加（见第六节）
+  4. 如仍无法解决，联系管理员检查 MCP 服务是否正常运行
 ═══════════════════════════════════════════
 ```
 
 ---
 
-## 五、MCP 服务器配置提醒
+## 六、MCP 连接配置说明
 
-如果用户还没有配置 `skill-uploader` MCP 服务器，提示用户：
+> **📡 核心理念：所有 MCP 工具调用都指向配置文件中的 `skill-uploader` 服务地址。该地址可能是本地（如 `127.0.0.1:8767`）也可能是远程服务器（如公司内网 IP），由管理员在配置文件中统一管理，用户无需自行启动 MCP 进程。**
 
-> ⚙️ 上传功能需要 `skill-uploader` MCP 服务器（HTTP/SSE 模式）。
->
-> **方式一：Docker 部署（推荐）**
->
-> ```bash
-> # 1. 克隆 skill-platform 项目（如果还没有）
-> git clone https://github.com/rj-yingjunjie/skill-platform.git
-> cd skill-platform/mcp-uploader-py
->
-> # 2. 构建并启动 Docker 容器
-> docker build -t skill-uploader-mcp .
-> docker run -d -p 8767:8767 \
->   -e GITHUB_TOKEN=ghp_你的真实令牌 \
->   --name skill-uploader \
->   skill-uploader-mcp
->
-> # 或使用 docker compose（需先编辑 docker-compose.yml 中的环境变量）
-> docker compose up -d
-> ```
->
-> **方式二：本地 Python 启动**
->
-> ```bash
-> # 1. 克隆项目并进入目录
-> git clone https://github.com/rj-yingjunjie/skill-platform.git
-> cd skill-platform/mcp-uploader-py
->
-> # 2. 安装依赖
-> pip install -r requirements.txt
->
-> # 3. 配置密钥（编辑 config.json，填入你的 GitHub Token）
-> cp config.example.json config.json
-> # 然后编辑 config.json，将 githubToken 改为你的真实令牌
->
-> # 4. 启动 SSE 服务
-> python server.py
-> ```
->
-> **配置 .mcp.json（自动）**
->
-> 本插件（common）已包含 `.mcp.json`，通过 `/plugin install` 安装后会自动生效：
->
-> ```json
-> {
->   "mcpServers": {
->     "skill-uploader": {
->       "url": "http://localhost:8767/sse"
->     }
->   }
-> }
-> ```
->
-> 如果是手动配置，将上述内容添加到项目根目录的 `.mcp.json` 文件中。
->
-> 服务启动后，MCP 会自动从内部 `config.json` 或环境变量读取密钥，无需在 `.mcp.json` 中暴露 Token。
+### 6.1 Claude Code 用户
+
+**方式一：安装 common 插件自动配置（推荐）**
+
+```bash
+/plugin install common@skill-hub
+# 插件内置 .mcp.json，自动注册 skill-uploader MCP 服务
+# 具体地址以 .mcp.json 中配置的 URL 为准
+```
+
+**方式二：命令行手动添加**
+
+```bash
+# 将 <MCP_URL> 替换为管理员提供的实际地址
+claude mcp add --transport sse skill-uploader <MCP_URL>
+```
+
+**方式三：在项目根目录创建 `.mcp.json`**
+
+```json
+{
+  "mcpServers": {
+    "skill-uploader": {
+      "type": "sse",
+      "url": "<MCP_URL>"
+    }
+  }
+}
+```
+
+### 6.2 VS Code Copilot 用户
+
+在项目根目录创建 `.vscode/mcp.json`：
+
+```json
+{
+  "servers": {
+    "skill-uploader": {
+      "type": "sse",
+      "url": "<MCP_URL>"
+    }
+  }
+}
+```
+
+> ⚠️ VS Code Copilot 使用 `"servers"` 而非 `"mcpServers"`，注意格式差异。
+
+保存后 VS Code 会自动发现配置，在 Chat 中即可使用 MCP 工具。
+
+### 6.3 GitHub Copilot Coding Agent
+
+在 GitHub 仓库 **Settings → Copilot → Coding Agent → MCP Configuration** 中配置：
+
+```json
+{
+  "mcpServers": {
+    "skill-uploader": {
+      "type": "sse",
+      "url": "<MCP_URL>",
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+> ⚠️ Coding Agent 要求必须有 `"tools"` 字段。
+
+### 6.4 多平台格式对照表
+
+| 平台                        | 配置文件             | 根 Key         | 额外字段        |
+| --------------------------- | -------------------- | -------------- | --------------- |
+| Claude Code                 | `.mcp.json`        | `mcpServers` | —              |
+| VS Code Copilot             | `.vscode/mcp.json` | `servers`    | 可选 `inputs` |
+| GitHub Copilot Coding Agent | 仓库 Settings        | `mcpServers` | 必填 `tools`  |
 
 ---
 
-## 六、使用位置参考
+## 七、仓库位置参考
 
-帮助用户理解上传后文件在 skill-hub 仓库中的位置：
+上传后文件在 skill-hub 仓库中的位置：
 
 ```
-skill-hub/                           ← GitHub 仓库
+skill-hub/
 ├── catalog.json                     ← 自动更新的技能目录
+├── .vscode/
+│   └── mcp.json                     ← VS Code Copilot MCP 配置
 ├── .claude-plugin/
 │   └── marketplace.json             ← GitHub Actions 自动生成
-│
 └── plugins/
-    ├── common/                      ← 公共插件（所有人共享）
+    ├── common/                      ← 公共插件
     │   ├── .claude-plugin/
-    │   │   └── plugin.json
-    │   ├── .mcp.json                ← MCP 服务器配置（SSE URL 模式，/plugin install 自动读取）
+    │   │   └── plugin.json          ← 插件清单（含 mcpServers 配置）
+    │   ├── .mcp.json                ← Claude Code MCP 配置（指向 SSE 服务）
     │   └── skills/
-    │       ├── example-skill/       ← 示例技能
-    │       │   └── SKILL.md
-    │       ├── skill-structure-audit/ ← 结构审核技能
-    │       │   └── SKILL.md
-    │       ├── skill-upload/        ← 本上传技能
-    │       │   └── SKILL.md
+    │       ├── skill-structure-audit/
+    │       ├── skill-upload/        ← 本技能
     │       └── <你的技能>/          ← ✨ 你的技能会出现在这里
-    │           └── SKILL.md
-    │
     └── <独立插件名>/                ← 独立插件
         ├── .claude-plugin/
         │   └── plugin.json
-        ├── skills/
-        │   └── <skill>/
-        │       └── SKILL.md
-        ├── commands/
-        ├── agents/
-        ├── hooks/
-        └── .mcp.json
+        └── skills/
 ```
 
 ---
 
-## 七、安全提醒
-
-在整个流程中注意：
+## 八、安全提醒
 
 - 🔒 上传密码只用于本次提交验证，不会被存储
-- 🔒 GitHub Token 保存在 MCP 服务内部（config.json 或 Docker 环境变量），不会出现在 `.mcp.json` 中
-- 🔒 `.mcp.json` 只包含服务地址 `"url": "http://localhost:8767/sse"`，不包含任何密钥
-- 🔒 提交前会自动跳过 `.git`、`node_modules`、隐藏文件（`.claude-plugin` 和 `.mcp.json` 除外）
+- 🔒 GitHub Token 保存在 MCP 服务端，不会出现在客户端任何配置中
+- 🔒 客户端配置只包含 MCP 服务地址，不包含任何密钥
+- 🔒 提交前会自动跳过 `.git`、`node_modules` 等无关目录
 - 🔒 提醒用户检查是否包含敏感信息（API Key、密码、.env 文件等）
-- 🔒 config.json 已加入 .gitignore，不会被提交到代码仓库
-- 🔒 Docker 部署时推荐使用 `-e GITHUB_TOKEN=xxx` 传入，避免 Token 写入镜像
