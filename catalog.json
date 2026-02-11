@@ -9,6 +9,34 @@
       "description": "A demo skill that shows how to write clean commit messages",
       "subpath": "plugins/common/skills/example-skill",
       "createdAt": "2026-02-11T00:00:00Z"
+    },
+    {
+      "name": "skill-structure-audit",
+      "repo": "rj-yingjunjie/skill-hub",
+      "type": "skill",
+      "tags": ["universal"],
+      "description": "审核并规整 Claude Code 技能或插件的项目结构，引导用户从零创建符合规范的技能/插件目录",
+      "subpath": "plugins/common/skills/skill-structure-audit",
+      "createdAt": "2026-02-11T00:00:00Z"
+    },
+    {
+      "name": "skill-upload",
+      "repo": "rj-yingjunjie/skill-hub",
+      "type": "skill",
+      "tags": ["mcp-required"],
+      "description": "上传技能或插件到 skill-hub 仓库，包含密码验证、结构审核、自动分类和 GitHub 推送功能",
+      "subpath": "plugins/common/skills/skill-upload",
+      "createdAt": "2026-02-11T00:00:00Z",
+      "mcpServers": {
+        "skill-uploader": {
+          "command": "node",
+          "args": ["mcp-uploader/dist/index.js"],
+          "env": {
+            "GITHUB_TOKEN": "your-github-token",
+            "CATALOG_REPO": "rj-yingjunjie/skill-hub"
+          }
+        }
+      }
     }
   ]
 }
