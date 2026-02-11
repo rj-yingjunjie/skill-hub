@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "skill-uploader": {
+      "command": "skill-uploader"
+    }
+  }
+}
