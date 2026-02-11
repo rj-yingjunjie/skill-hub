@@ -5,7 +5,7 @@
   "mcpServers": {
     "skill-uploader": {
       "type": "sse",
-      "url": "http://192.168.161.73:8767/sse"
+      "url": "http://127.0.0.1:8767/sse"
     }
   }
 }
