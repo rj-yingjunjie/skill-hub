@@ -1,5 +1,11 @@
 {
   "name": "common",
-  "version": "1.0.0",
-  "description": "Common skills collection — shared across all team members"
+  "version": "1.1.0",
+  "description": "Common skills collection — shared across all team members",
+  "mcpServers": {
+    "skill-uploader": {
+      "type": "sse",
+      "url": "http://192.168.161.73:8767/sse"
+    }
+  }
 }
