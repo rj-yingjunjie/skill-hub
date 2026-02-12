@@ -1,6 +1,9 @@
-name: Validate Catalog PR
+name: Validate Catalog
 
 on:
+  push:
+    branches: [main]
+    paths: ['catalog.json']
   pull_request:
     paths: ['catalog.json']
 
