@@ -1,7 +1,7 @@
 ---
 name: skill-structure-audit
 description: 审核并规整 Claude Code 技能(Skill)或插件(Plugin)的项目结构，引导用户从零创建符合规范的技能/插件目录
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, LS
+allowed-tools: Read, Write, Edit, Glob, Grep, LS
 ---
 # 技能/插件项目结构审核与规整
 
@@ -151,16 +151,14 @@ Claude 会按照这里的指令来执行任务。
 
 ### 步骤 1：基础存在性检查
 
-```bash
-# 检查目录是否存在
-ls -la <目标路径>
+使用跨平台工具检查文件结构（兼容 macOS/Windows/Linux）：
 
-# 检查 SKILL.md
-cat <目标路径>/SKILL.md 2>/dev/null || echo "❌ 未找到 SKILL.md"
+- 使用 `LS` 检查目录是否存在并列出内容
+- 使用 `Read` 读取 `SKILL.md` 内容
+- 使用 `Read` 读取 `.claude-plugin/plugin.json`（如果存在）
+- 使用 `Glob` 查找所有文件，检查是否包含不应上传的目录
 
-# 检查 plugin.json
-cat <目标路径>/.claude-plugin/plugin.json 2>/dev/null || echo "ℹ️ 未找到 plugin.json（如果是纯 Skill 则正常）"
-```
+> ⚠️ **重要：** 不要使用 `ls -la`、`cat`、`bash` 等命令，这些在 Windows 上不可用。始终使用 LS/Read/Glob/Grep 工具。
 
 ### 步骤 2：SKILL.md frontmatter 验证
 
